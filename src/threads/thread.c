@@ -620,22 +620,19 @@ void try_waking_sleeping_threads (int64_t current_ticks)
 		  if(t->sleepTill<=current_ticks)
 			{
 				//printf("In %s time %lld",t->name,current_ticks);
+				ASSERT (is_thread (t));
 			    list_push_back (&ready_list, &t->elem);
-				t->status= THREAD_READY;		
+				t->status= THREAD_READY;
 				struct thread *curr = running_thread ();
-				list_push_back (&ready_list, &curr->elem);
-				curr->status = THREAD_READY;
-				ASSERT (curr->status != THREAD_RUNNING);
-				//printf("%s",curr->name);		
-
+				if (curr != idle_thread) 
+					list_push_back (&ready_list, &curr->elem);				
+				break;       // need to figureout another way to loop through threads in sleeping list
 			}
 			else{
 				list_push_back (&sleep_list, &t->elem);
 				//printf("%d",count);
 			}
 		}
-		//printf("\n loop over \n'");
-	//struct thread *sleepingThread=list_entry (list_pop_front (&sleep_list), struct thread, elem);	
 	intr_set_level (old_level);
 	}
 	else{
