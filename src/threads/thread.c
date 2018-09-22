@@ -241,7 +241,7 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+  list_insert_ordered (&ready_list, &t->elem, (list_less_func *) &priority_compare, NULL);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -312,7 +312,7 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread) 
-    list_push_back (&ready_list, &cur->elem);
+    list_insert_ordered (&ready_list, &cur->elem, (list_less_func *) &priority_compare, NULL);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -469,7 +469,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
-  list_push_back (&all_list, &t->allelem);
+  list_insert_ordered (&all_list, &t->allelem, (list_less_func *) &priority_compare, NULL);
   intr_set_level (old_level);
 }
 
@@ -617,11 +617,11 @@ void try_waking_sleeping_threads (int64_t current_ticks)
 			{
 				count=0;
 				//printf("woke thread with tid %d \n",t->tid);
-			    list_push_back (&ready_list, &t->elem);
+			    	list_insert_ordered (&ready_list, &t->elem, (list_less_func *) &priority_compare, NULL);
 				t->status= THREAD_READY;
 				struct thread *curr = running_thread ();
 				if (curr != idle_thread) 
-					list_push_back (&ready_list, &curr->elem);				
+					list_insert_ordered (&ready_list, &curr->elem, (list_less_func *) &priority_compare, NULL);			
 			}
 			else{
 				list_push_back (&sleep_list, &t->elem);
@@ -653,4 +653,9 @@ push_thread_sleep_list(int64_t sleepTill)
 	}
 	schedule ();
 	intr_set_level (old_level);	
+}
+
+bool priority_compare(struct list_elem *e1, struct list_elem *e2)
+{
+	return (list_entry(e1, struct thread, elem)->priority > list_entry(e2, struct thread, elem)->priority);
 }
