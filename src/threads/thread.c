@@ -24,6 +24,8 @@
    that are ready to run but not actually running. */
 static struct list ready_list;
 
+static struct list sleep_list;
+
 /* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
@@ -92,6 +94,7 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+  list_init (&sleep_list);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -105,6 +108,7 @@ thread_init (void)
 void
 thread_start (void) 
 {
+printf("****************thread_start \n");
   /* Create the idle thread. */
   struct semaphore idle_started;
   sema_init (&idle_started, 0);
@@ -123,7 +127,7 @@ void
 thread_tick (void) 
 {
   struct thread *t = thread_current ();
-
+	//printf("thread_tick \n");
   /* Update statistics. */
   if (t == idle_thread)
     idle_ticks++;
@@ -171,7 +175,7 @@ thread_create (const char *name, int priority,
   struct switch_entry_frame *ef;
   struct switch_threads_frame *sf;
   tid_t tid;
-
+  //printf("thread_create \n");
   ASSERT (function != NULL);
 
   /* Allocate thread. */
@@ -256,7 +260,7 @@ struct thread *
 thread_current (void) 
 {
   struct thread *t = running_thread ();
-  
+  //printf("%s     %s",t->name,t->status);
   /* Make sure T is really a thread.
      If either of these assertions fire, then your thread may
      have overflowed its stack.  Each thread has less than 4 kB
@@ -303,7 +307,7 @@ thread_yield (void)
 {
   struct thread *cur = thread_current ();
   enum intr_level old_level;
-  
+  //printf("here -- %s\n",cur->name);	
   ASSERT (!intr_context ());
 
   old_level = intr_disable ();
@@ -489,7 +493,7 @@ alloc_frame (struct thread *t, size_t size)
    idle_thread. */
 static struct thread *
 next_thread_to_run (void) 
-{
+{	
   if (list_empty (&ready_list))
     return idle_thread;
   else
@@ -553,7 +557,7 @@ static void
 schedule (void) 
 {
   struct thread *cur = running_thread ();
-  struct thread *next = next_thread_to_run ();
+  struct thread *next = next_thread_to_run ();  
   struct thread *prev = NULL;
 
   ASSERT (intr_get_level () == INTR_OFF);
@@ -564,6 +568,8 @@ schedule (void)
     prev = switch_threads (cur, next);
   thread_schedule_tail (prev);
 }
+
+
 
 /* Returns a tid to use for a new thread. */
 static tid_t
@@ -582,3 +588,81 @@ allocate_tid (void)
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
+
+
+void try_waking_sleeping_threads (int64_t current_ticks)
+{	
+	if (!list_empty (&sleep_list))
+	{
+		enum intr_level old_level = intr_disable ();
+		struct list_elem *e;
+		int count=0;
+		tid_t firstTid;
+		for (e = list_begin (&sleep_list); e != list_end (&sleep_list);e = list_next (e))
+		{
+		  struct thread *t = list_entry (list_pop_front (&sleep_list), struct thread, elem);
+		  
+		  if(count==0)
+		  {
+			  firstTid=t->tid;
+			  count++;
+		  }
+		  else{
+			  if(t->tid==firstTid)
+			  {
+				  //printf("break");
+				  break;
+			  }
+		  }
+		  
+		 // printf("%s",t->name);
+		 // printf("%lld",current_ticks-t->sleepTill);
+		  if(t->sleepTill<=current_ticks)
+			{
+				//printf("In %s time %lld",t->name,current_ticks);
+			    list_push_back (&ready_list, &t->elem);
+				t->status= THREAD_READY;		
+				struct thread *curr = running_thread ();
+				list_push_back (&ready_list, &curr->elem);
+				curr->status = THREAD_READY;
+				ASSERT (curr->status != THREAD_RUNNING);
+				//printf("%s",curr->name);		
+
+			}
+			else{
+				list_push_back (&sleep_list, &t->elem);
+				//printf("%d",count);
+			}
+		}
+		//printf("\n loop over \n'");
+	//struct thread *sleepingThread=list_entry (list_pop_front (&sleep_list), struct thread, elem);	
+	intr_set_level (old_level);
+	}
+	else{
+		//printf("\n  ---- no thread in sleep    \n");
+	}	 
+}
+
+
+void 
+push_thread_sleep_list(int64_t sleepTill)
+{
+	//printf("\n in here \n");
+	struct thread *cur = thread_current ();
+	//printf("\n out here \n");
+	 enum intr_level old_level;
+  //printf("here -- %s     ---- %lld\n",cur->name,sleepTill);
+  ASSERT (!intr_context ());
+
+  old_level = intr_disable ();
+	if (cur != idle_thread) 
+	{
+		cur->sleepTill=sleepTill;
+        //printf("*************");	
+		list_push_back (&sleep_list, &cur->elem);
+		cur->status = THREAD_BLOCKED;
+		//printf("in---");
+	}
+	schedule ();
+	intr_set_level (old_level);	
+}
