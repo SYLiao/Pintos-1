@@ -592,52 +592,43 @@ uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
 void try_waking_sleeping_threads (int64_t current_ticks)
 {	
-	if (!list_empty (&sleep_list))
-	{
-		enum intr_level old_level = intr_disable ();
-		struct list_elem *e;
-		int count=0;
+	enum intr_level old_level = intr_disable ();
+	int count=0;
+	while (!list_empty (&sleep_list))
+	{		
 		tid_t firstTid;
-		for (e = list_begin (&sleep_list); e != list_end (&sleep_list);e = list_next (e))
-		{
-		  struct thread *t = list_entry (list_pop_front (&sleep_list), struct thread, elem);
-		  
+		struct thread *t = list_entry (list_pop_front (&sleep_list), struct thread, elem);		  
 		  if(count==0)
 		  {
 			  firstTid=t->tid;
 			  count++;
+			  //printf("first tid %d \n",firstTid);
 		  }
 		  else{
 			  if(t->tid==firstTid)
 			  {
-				  //printf("break");
+				  list_push_back (&sleep_list, &t->elem);
+				  //printf("break on tid %d \n",t->tid);
 				  break;
 			  }
+			  //printf("looped on tid %d \n",t->tid);
 		  }
-		  
-		 // printf("%s",t->name);
-		 // printf("%lld",current_ticks-t->sleepTill);
 		  if(t->sleepTill<=current_ticks)
 			{
-				//printf("In %s time %lld",t->name,current_ticks);
-				ASSERT (is_thread (t));
+				count=0;
+				//printf("woke thread with tid %d \n",t->tid);
 			    list_push_back (&ready_list, &t->elem);
 				t->status= THREAD_READY;
 				struct thread *curr = running_thread ();
 				if (curr != idle_thread) 
 					list_push_back (&ready_list, &curr->elem);				
-				break;       // need to figureout another way to loop through threads in sleeping list
 			}
 			else{
 				list_push_back (&sleep_list, &t->elem);
-				//printf("%d",count);
 			}
-		}
+	} 
+	//printf("exit \n");
 	intr_set_level (old_level);
-	}
-	else{
-		//printf("\n  ---- no thread in sleep    \n");
-	}	 
 }
 
 
