@@ -142,4 +142,7 @@ int thread_get_load_avg (void);
 void push_thread_sleep_list (int64_t sleepTill);
 void try_waking_sleeping_threads (int64_t current_ticks);
 //void waking_sleeping_thread(thread *t,void *aux);
+
+bool thread_compare(struct list_elem *e1, struct list_elem *e2);
+
 #endif /* threads/thread.h */
