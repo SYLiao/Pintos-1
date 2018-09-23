@@ -592,7 +592,7 @@ uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
 void try_waking_sleeping_threads (int64_t current_ticks)
 {	
-	enum intr_level old_level = intr_disable ();
+	//enum intr_level old_level = intr_disable ();
 	int count=0;
 	while (!list_empty (&sleep_list))
 	{		
@@ -628,29 +628,23 @@ void try_waking_sleeping_threads (int64_t current_ticks)
 			}
 	} 
 	//printf("exit \n");
-	intr_set_level (old_level);
+	//intr_set_level (old_level);
 }
 
 
 void 
 push_thread_sleep_list(int64_t sleepTill)
 {
-	//printf("\n in here \n");
 	struct thread *cur = thread_current ();
-	//printf("\n out here \n");
-	 enum intr_level old_level;
-  //printf("here -- %s     ---- %lld\n",cur->name,sleepTill);
-  ASSERT (!intr_context ());
-
-  old_level = intr_disable ();
-	if (cur != idle_thread) 
+	enum intr_level old_level;
+   if (cur != idle_thread) 
 	{
 		cur->sleepTill=sleepTill;
-        //printf("*************");	
-		list_push_back (&sleep_list, &cur->elem);
+        list_push_back (&sleep_list, &cur->elem);
 		cur->status = THREAD_BLOCKED;
-		//printf("in---");
 	}
+	
+	old_level = intr_disable ();
 	schedule ();
 	intr_set_level (old_level);	
 }
