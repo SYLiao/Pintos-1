@@ -205,7 +205,12 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
-
+	
+  /* When a new thread is created, compare the priority with running thread, if the new thread is larger, call thread_yield()*/
+  if(priority > thread_current()->priority)
+  {
+	  thread_yield();
+  }
   return tid;
 }
 
@@ -341,6 +346,8 @@ void
 thread_set_priority (int new_priority) 
 {
   thread_current ()->priority = new_priority;
+/* When a new priority is set to current thread, put it back to ready queue and sort again. */
+  thread_yield();
 }
 
 /* Returns the current thread's priority. */
