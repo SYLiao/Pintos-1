@@ -92,7 +92,8 @@ timer_sleep (int64_t ticks)
   int64_t start = timer_ticks ();
 
   ASSERT (intr_get_level () == INTR_ON);
-  push_thread_sleep_list(start+ticks);
+  if(ticks > 0)
+	push_thread_sleep_list(start+ticks);
   // while (timer_elapsed (start) < ticks) 
      // thread_yield ();
 }
