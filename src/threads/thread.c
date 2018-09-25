@@ -66,6 +66,7 @@ static void kernel_thread (thread_func *, void *aux);
 static void idle (void *aux UNUSED);
 static struct thread *running_thread (void);
 static struct thread *next_thread_to_run (void);
+struct list_elem *next_thread_to_run_by_priority(void);
 static void init_thread (struct thread *, const char *name, int priority);
 static bool is_thread (struct thread *) UNUSED;
 static void *alloc_frame (struct thread *, size_t size);
@@ -497,7 +498,8 @@ next_thread_to_run (void)
   if (list_empty (&ready_list))
     return idle_thread;
   else
-    return list_entry (list_pop_front (&ready_list), struct thread, elem);
+	  return list_entry (next_thread_to_run_by_priority(), struct thread, elem);
+    //return list_entry (list_pop_front (&ready_list), struct thread, elem);
 }
 
 /* Completes a thread switch by activating the new thread's page
@@ -652,4 +654,26 @@ push_thread_sleep_list(int64_t sleepTill)
 bool priority_compare(struct list_elem *e1, struct list_elem *e2)
 {
 	return (list_entry(e1, struct thread, elem)->priority > list_entry(e2, struct thread, elem)->priority);
+}
+
+struct list_elem *
+ next_thread_to_run_by_priority()
+{
+	int max_priority=-1;			// In pintos minimum priority will be 0 so setting up to below than its lower end
+	struct list_elem *e;
+	struct list_elem *elem_hold_to_remove;
+	for (e = list_begin (&ready_list); e != list_end (&ready_list);
+       e = list_next (e))
+    {
+      struct thread *t = list_entry (e, struct thread, allelem);
+      if(t->priority > max_priority)							// Same priority threads will be picked FCFS fashion
+	  {
+		  max_priority=t->priority;
+		  elem_hold_to_remove = e;
+	  }
+    }
+	
+	list_remove(elem_hold_to_remove);							// Removing the scheduled thread from the list
+	return elem_hold_to_remove;
+	
 }
