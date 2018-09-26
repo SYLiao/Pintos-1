@@ -66,7 +66,6 @@ static void kernel_thread (thread_func *, void *aux);
 static void idle (void *aux UNUSED);
 static struct thread *running_thread (void);
 static struct thread *next_thread_to_run (void);
-struct list_elem *next_thread_to_run_by_priority(void);
 static void init_thread (struct thread *, const char *name, int priority);
 static bool is_thread (struct thread *) UNUSED;
 static void *alloc_frame (struct thread *, size_t size);
@@ -505,7 +504,7 @@ next_thread_to_run (void)
   if (list_empty (&ready_list))
     return idle_thread;
   else
-	  return list_entry (next_thread_to_run_by_priority(), struct thread, elem);
+	  return list_entry (next_thread_by_priority(&ready_list), struct thread, elem);
     //return list_entry (list_pop_front (&ready_list), struct thread, elem);
 }
 
@@ -664,13 +663,13 @@ bool priority_compare(struct list_elem *e1, struct list_elem *e2)
 }
 
 struct list_elem *
- next_thread_to_run_by_priority()
+ next_thread_by_priority(struct list *list)
 {
 	int max_priority=-1;			// In pintos minimum priority will be 0 so setting up to below than its lower end
 	struct list_elem *e;
 	int count=0;
 	struct list_elem *elem_hold_to_remove;
-	for (e = list_begin (&ready_list); e != list_end (&ready_list);
+	for (e = list_begin (list); e != list_end (list);
        e = list_next (e))
     {
       struct thread *t = list_entry (e, struct thread, allelem);
@@ -688,5 +687,5 @@ struct list_elem *
 		return elem_hold_to_remove;
 	}
 	
-	return list_pop_front (&ready_list);
+	return list_pop_front (list);
 }

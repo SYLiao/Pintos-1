@@ -145,4 +145,5 @@ void try_waking_sleeping_threads (int64_t current_ticks);
 
 bool priority_compare(struct list_elem *e1, struct list_elem *e2);
 
+struct list_elem *next_thread_by_priority(struct list *list);
 #endif /* threads/thread.h */
