@@ -668,6 +668,7 @@ struct list_elem *
 {
 	int max_priority=-1;			// In pintos minimum priority will be 0 so setting up to below than its lower end
 	struct list_elem *e;
+	int count=0;
 	struct list_elem *elem_hold_to_remove;
 	for (e = list_begin (&ready_list); e != list_end (&ready_list);
        e = list_next (e))
@@ -678,9 +679,14 @@ struct list_elem *
 		  max_priority=t->priority;
 		  elem_hold_to_remove = e;
 	  }
+	  count++;
     }
 	
-	list_remove(elem_hold_to_remove);							// Removing the scheduled thread from the list
-	return elem_hold_to_remove;
+	if(count>1)
+	{
+		list_remove(elem_hold_to_remove);							// Removing the scheduled thread from the list
+		return elem_hold_to_remove;
+	}
 	
+	return list_pop_front (&ready_list);
 }
