@@ -206,10 +206,11 @@ thread_create (const char *name, int priority,
   thread_unblock (t);
 	
   /* When a new thread is created, compare the priority with running thread, if the new thread is larger, call thread_yield()*/
-  if(priority > thread_current()->priority)
-  {
-	  thread_yield();
-  }
+  // no need to call thread_yield from here any more as preempt priority are now being compared inside thread unblock
+  // if(priority > thread_current()->priority)
+  // {
+	  // thread_yield();
+  // }
   return tid;
 }
 
