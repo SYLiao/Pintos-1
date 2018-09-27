@@ -114,7 +114,7 @@ sema_up (struct semaphore *sema)
   ASSERT (sema != NULL);
 
   old_level = intr_disable ();
-   sema->value++;
+   sema->value++;									// pushing it above otherwise when thread will be in ready queue and gets CPU will start executing sema down while loop code which will tell sema -->value still zero, so will make it positive first then unblock thread, and if we dont do it last thread will never woke up.
   if (!list_empty (&sema->waiters)) 
     thread_unblock (list_entry (list_pop_front (&sema->waiters),
                                 struct thread, elem));
