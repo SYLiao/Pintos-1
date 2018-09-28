@@ -34,6 +34,7 @@ bool lock_held_by_current_thread (const struct lock *);
 struct condition 
   {
     struct list waiters;        /* List of waiting threads. */
+	bool is_sorted;				/* Check if the list waiters list is in sorting order */
   };
 
 void cond_init (struct condition *);
@@ -41,6 +42,8 @@ void cond_wait (struct condition *, struct lock *);
 void cond_signal (struct condition *, struct lock *);
 void cond_broadcast (struct condition *, struct lock *);
 
+
+bool priority_compare_for_condition(struct list_elem *e1, struct list_elem *e2);
 /* Optimization barrier.
 
    The compiler will not reorder operations across an
