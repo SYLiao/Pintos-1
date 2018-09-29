@@ -194,12 +194,40 @@ lock_init (struct lock *lock)
 void
 lock_acquire (struct lock *lock)
 {
+  struct thread *current_thread = thread_current ();
+  struct lock *l;
+  enum intr_level old_level;
+
   ASSERT (lock != NULL);
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
+  if (lock->holder != NULL && !thread_mlfqs)
+  {
+    current_thread->lock_now = lock;
+    l = lock;
+    while (l && current_thread->priority > l->priority_donated)
+    {
+      l->priority_donated = current_thread->priority;
+      thread_donate_priority (l->holder);
+      l = l->holder->lock_now;
+    }
+  }
+
   sema_down (&lock->semaphore);
-  lock->holder = thread_current ();
+
+  old_level = intr_disable ();
+
+  current_thread = thread_current ();
+  if (!thread_mlfqs)
+  {
+    current_thread->lock_now = NULL;
+    lock->priority_donated = current_thread->priority;
+    thread_holder(lock);
+  }
+  lock->holder = current_thread;
+
+  intr_set_level (old_level);
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -235,6 +263,8 @@ lock_release (struct lock *lock)
 
   lock->holder = NULL;
   sema_up (&lock->semaphore);
+
+  if (!thread_mlfqs) thread_remove_lock (lock);
 }
 
 /* Returns true if the current thread holds LOCK, false
@@ -356,4 +386,12 @@ bool priority_compare_for_condition(struct list_elem *e1, struct list_elem *e2)
 	int pr2= list_entry (list_front (&sema2.waiters),struct thread, elem)->priority;
 	return  pr1 > pr2;
 }
+
+/* lock comparation function */
+bool
+lock_compare (const struct list_elem *e1, const struct list_elem *e2)
+{
+  return list_entry (e1, struct lock, elem)->priority_donated > list_entry (e2, struct lock, elem)->priority_donated;
+}
+
 
