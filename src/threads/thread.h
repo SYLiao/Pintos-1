@@ -80,7 +80,7 @@ typedef int tid_t;
    only because they are mutually exclusive: only a thread in the
    ready state is on the run queue, whereas only a thread in the
    blocked state is on a semaphore wait list. */
-struct thread
+ struct thread
   {
     /* Owned by thread.c. */
     tid_t tid;                          /* Thread identifier. */
@@ -101,6 +101,11 @@ struct thread
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
+
+    int priority_init;                
+    struct list locks;           
+    struct lock *lock_now;
+
   };
 
 /* If false (default), use round-robin scheduler.
@@ -144,6 +149,11 @@ void try_waking_sleeping_threads (int64_t current_ticks);
 //void waking_sleeping_thread(thread *t,void *aux);
 
 bool priority_compare(struct list_elem *e1, struct list_elem *e2);
+
+void thread_update (struct thread *t);
+void thread_remove_lock (struct lock *lock);
+void thread_donate_priority (struct thread *t);
+void thread_holder(struct lock *lock);
 
 struct list_elem *next_thread_by_priority(struct list *list);
 #endif /* threads/thread.h */
