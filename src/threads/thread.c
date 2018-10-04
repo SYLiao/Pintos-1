@@ -72,6 +72,7 @@ static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
+static struct semaphore sleep_sema;
 
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -95,6 +96,7 @@ thread_init (void)
   list_init (&ready_list);
   list_init (&all_list);
   list_init (&sleep_list);
+  sema_init (&sleep_sema, 1);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -347,26 +349,12 @@ thread_foreach (thread_action_func *func, void *aux)
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
-thread_set_priority (int new_priority)
+thread_set_priority (int new_priority) 
 {
-  if (thread_mlfqs)
-    return;
-
-  enum intr_level old_level = intr_disable ();
-
-  struct thread *current_thread = thread_current ();
-  int old_priority = current_thread->priority;
-  current_thread->priority_init = new_priority;
-
-  if (list_empty (&current_thread->locks) || new_priority > old_priority)
-  {
-    current_thread->priority = new_priority;
-    thread_yield ();
-  }
-
-  intr_set_level (old_level);
+  thread_current ()->priority = new_priority;
+/* When a new priority is set to current thread, put it back to ready queue and sort again. */
+  thread_yield();
 }
-
 
 /* Returns the current thread's priority. */
 int
@@ -496,10 +484,6 @@ init_thread (struct thread *t, const char *name, int priority)
 
   old_level = intr_disable ();
   list_insert_ordered (&all_list, &t->allelem, (list_less_func *) &priority_compare, NULL);
-  t->priority_init = priority;
-  list_init (&t->locks);
-  t->lock_now = NULL;
-
   intr_set_level (old_level);
 }
 
@@ -666,6 +650,7 @@ void try_waking_sleeping_threads (int64_t current_ticks)
 void 
 push_thread_sleep_list(int64_t sleepTill)
 {
+	sema_down (&sleep_sema);
 	struct thread *cur = thread_current ();
 	enum intr_level old_level;
    if (cur != idle_thread) 
@@ -674,11 +659,11 @@ push_thread_sleep_list(int64_t sleepTill)
         list_push_back (&sleep_list, &cur->elem);
 		cur->status = THREAD_BLOCKED;
 	}
-	
+	sema_up(&sleep_sema);
 	old_level = intr_disable ();
 	schedule ();
 	intr_set_level (old_level);	
-}
+  }
 
 bool priority_compare(struct list_elem *e1, struct list_elem *e2)
 {
@@ -712,67 +697,3 @@ struct list_elem *
 	
 	return list_pop_front (list);
 }
-
-void
-thread_donate_priority (struct thread *t)
-{
-  enum intr_level old_level = intr_disable ();
-  thread_update (t);
-
-  if (t->status == THREAD_READY)
-  {
-    list_remove (&t->elem);
-    list_insert_ordered (&ready_list, &t->elem, (list_less_func *) &priority_compare, NULL);
-  }
-  intr_set_level (old_level);
-}
-
-
-/* Remove a lock. */
-void
-thread_remove_lock (struct lock *lock)
-{
-  enum intr_level old_level = intr_disable ();
-  list_remove (&lock->elem);
-  thread_update (thread_current ());
-  intr_set_level (old_level);
-}
-
-
-void
-thread_update (struct thread *t)
-{
-  enum intr_level old_level = intr_disable ();
-  int priority_donated = t->priority_init;
-  int lock_priority;
-
-  if (!list_empty (&t->locks))
-  {
-    list_sort (&t->locks, lock_compare, NULL);
-    lock_priority = list_entry (list_front (&t->locks), struct lock, elem)->priority_donated;
-    if (lock_priority > priority_donated)
-      priority_donated = lock_priority;
-  }
-
-  t->priority = priority_donated;
-  intr_set_level (old_level);
-}
-
-
-/* Let thread hold a lock */
-void
-thread_holder(struct lock *lock)
-{
-  enum intr_level old_level = intr_disable ();
-  list_insert_ordered (&thread_current ()->locks, &lock->elem, (list_less_func *) &lock_compare, NULL);
-
-  if (lock->priority_donated > thread_current ()->priority)
-  {
-    thread_current ()->priority = lock->priority_donated;
-    thread_yield ();
-  }
-
-  intr_set_level (old_level);
-}
-
-
