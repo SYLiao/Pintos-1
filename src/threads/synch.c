@@ -219,7 +219,7 @@ lock_acquire (struct lock *lock)
   sema_down (&lock->semaphore);
   lock->holder = thread_current ();
   cur_thread->current_lock_requested = NULL;               // Remove lock request as now we have aquired the lock
-  list_insert_ordered(&cur_thread->locks_holds,&lock->elem,(list_less_func *) lock_priority_compare,NULL);
+  list_push_back(&cur_thread->locks_holds,&lock->elem);   // no point pushing in the list based lock priority, as donation will change the priority later, so will sort list at the time of releasing lock
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -271,6 +271,8 @@ lock_release (struct lock *lock)
   if(!list_empty(&cur_thread->locks_holds))
     {
       // if it holds more locks then find the highest priorty lock and assign its priority to thread
+      list_sort(&(cur_thread->locks_holds),(list_less_func *) &lock_priority_compare, NULL);
+      //int size = list_size(&(cur_thread->locks_holds));
       struct lock *highest_priority_lock = list_entry( list_front(&(cur_thread->locks_holds)), struct lock, elem );
       //cur_thread->priority = highest_priority_lock->lock_priority;
       thread_set_priority(highest_priority_lock->lock_priority);
