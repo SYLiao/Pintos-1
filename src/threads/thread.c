@@ -480,8 +480,10 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
-  t->magic = THREAD_MAGIC;
-
+  t->initial_priority = priority;
+  list_init(&t->locks_holds);
+  t->current_lock_requested = NULL;
+  t->magic = THREAD_MAGIC;  
   old_level = intr_disable ();
   list_insert_ordered (&all_list, &t->allelem, (list_less_func *) &priority_compare, NULL);
   intr_set_level (old_level);
@@ -511,8 +513,9 @@ next_thread_to_run (void)
   if (list_empty (&ready_list))
     return idle_thread;
   else
-	  return list_entry (next_thread_by_priority(&ready_list), struct thread, elem);
-    //return list_entry (list_pop_front (&ready_list), struct thread, elem);
+    return list_entry (list_pop_front (&ready_list), struct thread, elem);
+	  //return list_entry (next_thread_by_priority(&ready_list), struct thread, elem);
+   
 }
 
 /* Completes a thread switch by activating the new thread's page

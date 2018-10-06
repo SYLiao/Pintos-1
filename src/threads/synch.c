@@ -197,9 +197,29 @@ lock_acquire (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
+  struct thread *cur_thread = thread_current();
+  struct thread *cur_lock_holder = lock->holder;   // thread holding lock
+
+  cur_thread->current_lock_requested = lock;        // Current requested lock set to null once lock is aquired
+
+  if(list_empty(&cur_thread->locks_holds))
+    cur_thread->initial_priority=cur_thread->priority;    // set initial priority here too  before it holds any locks
+
+  //First thread to aquire lock should attach its priority to lock
+  if(cur_lock_holder == NULL)
+    lock->lock_priority = cur_thread->priority;
+
+  if(cur_lock_holder != NULL)
+  {
+	  if(cur_thread->priority > cur_lock_holder->priority)
+		  cur_lock_holder->priority = cur_thread->priority;
+      lock->lock_priority = cur_thread->priority;           // Needed when current lock release and threads picks next lock from its queue
+  }
 
   sema_down (&lock->semaphore);
   lock->holder = thread_current ();
+  cur_thread->current_lock_requested = NULL;               // Remove lock request as now we have aquired the lock
+  list_insert_ordered(&cur_thread->locks_holds,&lock->elem,(list_less_func *) lock_priority_compare,NULL);
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -235,6 +255,32 @@ lock_release (struct lock *lock)
 
   lock->holder = NULL;
   sema_up (&lock->semaphore);
+
+  // Priority inversion take priority away as it release lock
+  // struct thread *cur_thread = thread_current();
+  // cur_thread->priority = cur_thread->initial_priority;
+  /* Steps in lock release should contains these
+  1. inversion of the priority of the thread releasing it to the either initial state or 
+  if thread has received priority from any other thread for some other lock then set that locks priority to thread
+  2. Remove this lock from threads locks_holds list as its released now
+  */
+
+  struct thread *cur_thread = thread_current();
+  list_remove(&lock->elem);       // remove current lock from threads hold list as its been relesed
+
+  if(!list_empty(&cur_thread->locks_holds))
+    {
+      // if it holds more locks then find the highest priorty lock and assign its priority to thread
+      struct lock *highest_priority_lock = list_entry( list_front(&(cur_thread->locks_holds)), struct lock, elem );
+      //cur_thread->priority = highest_priority_lock->lock_priority;
+      thread_set_priority(highest_priority_lock->lock_priority);
+    }
+    else
+    {
+      // if there are no more locks it hold change its priority to initial priority
+      //cur_thread->priority = cur_thread->initial_priority;
+      thread_set_priority(cur_thread->initial_priority);
+    }
 }
 
 /* Returns true if the current thread holds LOCK, false
@@ -355,4 +401,9 @@ bool priority_compare_for_condition(struct list_elem *e1, struct list_elem *e2)
 	int pr1= list_entry (list_front (&sema1.waiters),struct thread, elem)->priority;
 	int pr2= list_entry (list_front (&sema2.waiters),struct thread, elem)->priority;
 	return  pr1 > pr2;
+}
+
+bool lock_priority_compare(struct list_elem *e1, struct list_elem *e2)
+{
+	return (list_entry(e1, struct lock, elem)->lock_priority > list_entry(e2, struct lock, elem)->lock_priority);
 }
