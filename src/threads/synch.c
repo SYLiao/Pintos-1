@@ -209,17 +209,27 @@ lock_acquire (struct lock *lock)
   if(cur_lock_holder == NULL)
     lock->lock_priority = cur_thread->priority;
 
-  if(cur_lock_holder != NULL)
+  while(cur_lock_holder != NULL)
   {
 	  if(cur_thread->priority > cur_lock_holder->priority)
+    {
 		  cur_lock_holder->priority = cur_thread->priority;
       lock->lock_priority = cur_thread->priority;           // Needed when current lock release and threads picks next lock from its queue
+    }
+
+    struct lock *temp = cur_lock_holder->current_lock_requested;
+    if(temp == NULL)
+      break;        // if there are no lock is requested further no nested donation
+    
+    cur_lock_holder = temp->holder;         // if it has requested for any lock get the holder of lock for priority donation under nested donation
+
   }
 
   sema_down (&lock->semaphore);
   lock->holder = thread_current ();
   cur_thread->current_lock_requested = NULL;               // Remove lock request as now we have aquired the lock
-  list_push_back(&cur_thread->locks_holds,&lock->elem);   // no point pushing in the list based lock priority, as donation will change the priority later, so will sort list at the time of releasing lock
+  //list_push_back(&cur_thread->locks_holds,&lock->elem);   // no point pushing in the list based lock priority, as donation will change the priority later, so will sort list at the time of releasing lock
+  list_insert_ordered (&cur_thread->locks_holds, &lock->elem, (list_less_func *) &lock_priority_compare, NULL);
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -254,6 +264,7 @@ lock_release (struct lock *lock)
   ASSERT (lock_held_by_current_thread (lock));
 
   lock->holder = NULL;
+  list_remove(&lock->elem);       // remove current lock from threads hold list as its been relesed
   sema_up (&lock->semaphore);
 
   // Priority inversion take priority away as it release lock
@@ -266,7 +277,7 @@ lock_release (struct lock *lock)
   */
 
   struct thread *cur_thread = thread_current();
-  list_remove(&lock->elem);       // remove current lock from threads hold list as its been relesed
+  // list_remove(&lock->elem);       // remove current lock from threads hold list as its been relesed
 
   if(!list_empty(&cur_thread->locks_holds))
     {
