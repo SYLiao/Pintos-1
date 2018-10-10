@@ -199,6 +199,7 @@ lock_acquire (struct lock *lock)
   ASSERT (!lock_held_by_current_thread (lock));
   struct thread *cur_thread = thread_current();
   struct thread *cur_lock_holder = lock->holder;   // thread holding lock
+  struct lock *cur_lock = lock;
 
   cur_thread->current_lock_requested = lock;        // Current requested lock set to null once lock is aquired
 
@@ -214,15 +215,15 @@ lock_acquire (struct lock *lock)
 	  if(cur_thread->priority > cur_lock_holder->priority)
     {
 		  cur_lock_holder->priority = cur_thread->priority;
-      lock->lock_priority = cur_thread->priority;           // Needed when current lock release and threads picks next lock from its queue
+      cur_lock->lock_priority = cur_thread->priority;           // Needed when current lock release and threads picks next lock from its queue
     }
 
-    struct lock *temp = cur_lock_holder->current_lock_requested;
-    if(temp == NULL)
+    cur_lock = cur_lock_holder->current_lock_requested;
+    if(cur_lock == NULL)
       break;        // if there are no lock is requested further no nested donation
     
-    cur_lock_holder = temp->holder;         // if it has requested for any lock get the holder of lock for priority donation under nested donation
-
+    cur_lock_holder = cur_lock->holder;         // if it has requested for any lock get the holder of lock for priority donation under nested donation
+												// Change the priority of current lock too else causing issue with priority-donate-chain as priority while lock release depend on locks priority
   }
 
   sema_down (&lock->semaphore);
@@ -275,7 +276,7 @@ lock_release (struct lock *lock)
   if thread has received priority from any other thread for some other lock then set that locks priority to thread
   2. Remove this lock from threads locks_holds list as its released now
   */
-
+ 
   struct thread *cur_thread = thread_current();
   // list_remove(&lock->elem);       // remove current lock from threads hold list as its been relesed
 
