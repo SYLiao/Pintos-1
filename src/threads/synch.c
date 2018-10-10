@@ -289,15 +289,16 @@ lock_release (struct lock *lock)
       list_sort(&(cur_thread->locks_holds),(list_less_func *) &lock_priority_compare, NULL);
       //int size = list_size(&(cur_thread->locks_holds));
       struct lock *highest_priority_lock = list_entry( list_front(&(cur_thread->locks_holds)), struct lock, elem );
-      //cur_thread->priority = highest_priority_lock->lock_priority;
-      thread_set_priority(highest_priority_lock->lock_priority);
+      cur_thread->priority = highest_priority_lock->lock_priority;
+      //thread_set_priority(highest_priority_lock->lock_priority);
     }
     else
     {
       // if there are no more locks it hold change its priority to initial priority
-      //cur_thread->priority = cur_thread->initial_priority;
-      thread_set_priority(cur_thread->initial_priority);
+      cur_thread->priority = cur_thread->initial_priority;
+      //thread_set_priority(cur_thread->initial_priority);
     }
+    thread_yield();
 }
 
 /* Returns true if the current thread holds LOCK, false

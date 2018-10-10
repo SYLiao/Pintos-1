@@ -351,9 +351,15 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-  thread_current ()->priority = new_priority;
-/* When a new priority is set to current thread, put it back to ready queue and sort again. */
-  thread_yield();
+  if(list_empty(&thread_current ()->locks_holds))           // check if donation is not in play otherwise dont let this function to change the priority
+  {
+    thread_current ()->priority = new_priority;
+  /* When a new priority is set to current thread, put it back to ready queue and sort again. */
+    thread_yield();
+  }
+  else{
+    thread_current ()->initial_priority = new_priority;      // but keep track of the priority changes to assign when donation is not in picture
+  }
 }
 
 /* Returns the current thread's priority. */
