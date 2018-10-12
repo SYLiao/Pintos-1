@@ -616,43 +616,17 @@ uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
 void try_waking_sleeping_threads (int64_t current_ticks)
 {	
-	//enum intr_level old_level = intr_disable ();
-	int count=0;
-	while (!list_empty (&sleep_list))
-	{		
-		tid_t firstTid;
-		struct thread *t = list_entry (list_pop_front (&sleep_list), struct thread, elem);		  
-		  if(count==0)
-		  {
-			  firstTid=t->tid;
-			  count++;
-			  //printf("first tid %d \n",firstTid);
-		  }
-		  else{
-			  if(t->tid==firstTid)
-			  {
-				  list_push_back (&sleep_list, &t->elem);
-				  //printf("break on tid %d \n",t->tid);
-				  break;
-			  }
-			  //printf("looped on tid %d \n",t->tid);
-		  }
-		  if(t->sleepTill<=current_ticks)
-			{
-				count=0;
-				//printf("woke thread with tid %d \n",t->tid);
-			    	list_insert_ordered (&ready_list, &t->elem, (list_less_func *) &priority_compare, NULL);
-				t->status= THREAD_READY;
-				struct thread *curr = running_thread ();
-				if (curr != idle_thread) 
-					list_insert_ordered (&ready_list, &curr->elem, (list_less_func *) &priority_compare, NULL);			
-			}
-			else{
-				list_push_back (&sleep_list, &t->elem);
-			}
-	} 
-	//printf("exit \n");
-	//intr_set_level (old_level);
+  while (!list_empty (&sleep_list))
+    {	
+      struct thread *t = list_entry (list_front (&sleep_list), struct thread, elem);
+      
+      if(t->sleepTill>current_ticks)
+        break;
+      
+      t = list_entry (list_pop_front (&sleep_list), struct thread, elem);
+      list_insert_ordered (&ready_list, &t->elem, (list_less_func *) &priority_compare, NULL);
+      t->status = THREAD_READY;
+    }
 }
 
 
@@ -665,7 +639,8 @@ push_thread_sleep_list(int64_t sleepTill)
    if (cur != idle_thread) 
 	{
 		cur->sleepTill=sleepTill;
-        list_push_back (&sleep_list, &cur->elem);
+    //list_push_back (&sleep_list, &cur->elem);
+    list_insert_ordered (&sleep_list, &cur->elem, (list_less_func *) &sleep_time_compare, NULL);
 		cur->status = THREAD_BLOCKED;
 	}
 	sema_up(&sleep_sema);
@@ -677,6 +652,17 @@ push_thread_sleep_list(int64_t sleepTill)
 bool priority_compare(struct list_elem *e1, struct list_elem *e2)
 {
 	return (list_entry(e1, struct thread, elem)->priority > list_entry(e2, struct thread, elem)->priority);
+}
+
+bool sleep_time_compare(struct list_elem *e1, struct list_elem *e2)
+{
+  struct thread *t1 = list_entry(e1, struct thread, elem);
+  struct thread *t2 = list_entry(e2, struct thread, elem);
+
+  if(t1->sleepTill == t2->sleepTill)
+    return (t1->priority > t2->priority);
+
+	return (t1->sleepTill < t2->sleepTill);
 }
 
 struct list_elem *
