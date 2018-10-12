@@ -200,40 +200,48 @@ lock_acquire (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
-  struct thread *cur_thread = thread_current();
-  struct thread *cur_lock_holder = lock->holder;   // thread holding lock
-  struct lock *cur_lock = lock;
+  struct thread *cur_thread = thread_current();  
 
-  cur_thread->current_lock_requested = lock;        // Current requested lock set to null once lock is aquired
-
-  if(list_empty(&cur_thread->locks_holds))
-    cur_thread->initial_priority=cur_thread->priority;    // set initial priority here too  before it holds any locks
-
-  //First thread to aquire lock should attach its priority to lock
-  if(cur_lock_holder == NULL)
-    lock->lock_priority = cur_thread->priority;
-
-  while(cur_lock_holder != NULL)
+  if(!thread_mlfqs)
   {
-	  if(cur_thread->priority > cur_lock_holder->priority)
-    {
-		  cur_lock_holder->priority = cur_thread->priority;
-      cur_lock->lock_priority = cur_thread->priority;           // Needed when current lock release and threads picks next lock from its queue
-    }
+    struct thread *cur_lock_holder = lock->holder;   // thread holding lock
+    struct lock *cur_lock = lock;
 
-    cur_lock = cur_lock_holder->current_lock_requested;
-    if(cur_lock == NULL)
-      break;        // if there are no lock is requested further no nested donation
-    
-    cur_lock_holder = cur_lock->holder;         // if it has requested for any lock get the holder of lock for priority donation under nested donation
-												// Change the priority of current lock too else causing issue with priority-donate-chain as priority while lock release depend on locks priority
+    cur_thread->current_lock_requested = lock;        // Current requested lock set to null once lock is aquired
+
+    if(list_empty(&cur_thread->locks_holds))
+      cur_thread->initial_priority=cur_thread->priority;    // set initial priority here too  before it holds any locks
+
+    //First thread to aquire lock should attach its priority to lock
+    if(cur_lock_holder == NULL)
+      lock->lock_priority = cur_thread->priority;
+
+    while(cur_lock_holder != NULL)
+    {
+      if(cur_thread->priority > cur_lock_holder->priority)
+      {
+        cur_lock_holder->priority = cur_thread->priority;
+        cur_lock->lock_priority = cur_thread->priority;           // Needed when current lock release and threads picks next lock from its queue
+      }
+
+      cur_lock = cur_lock_holder->current_lock_requested;
+      if(cur_lock == NULL)
+        break;        // if there are no lock is requested further no nested donation
+      
+      cur_lock_holder = cur_lock->holder;         // if it has requested for any lock get the holder of lock for priority donation under nested donation
+                          // Change the priority of current lock too else causing issue with priority-donate-chain as priority while lock release depend on locks priority
+    }
   }
 
   sema_down (&lock->semaphore);
   lock->holder = thread_current ();
-  cur_thread->current_lock_requested = NULL;               // Remove lock request as now we have aquired the lock
-  //list_push_back(&cur_thread->locks_holds,&lock->elem);   // no point pushing in the list based lock priority, as donation will change the priority later, so will sort list at the time of releasing lock
-  list_insert_ordered (&cur_thread->locks_holds, &lock->elem, (list_less_func *) &lock_priority_compare, NULL);
+
+  if(!thread_mlfqs)
+  {
+    cur_thread->current_lock_requested = NULL;               // Remove lock request as now we have aquired the lock
+    //list_push_back(&cur_thread->locks_holds,&lock->elem);   // no point pushing in the list based lock priority, as donation will change the priority later, so will sort list at the time of releasing lock
+    list_insert_ordered (&cur_thread->locks_holds, &lock->elem, (list_less_func *) &lock_priority_compare, NULL);
+  }
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -268,7 +276,10 @@ lock_release (struct lock *lock)
   ASSERT (lock_held_by_current_thread (lock));
 
   lock->holder = NULL;
-  list_remove(&lock->elem);       // remove current lock from threads hold list as its been relesed
+  
+  if(!thread_mlfqs)
+    list_remove(&lock->elem);       // remove current lock from threads hold list as its been released and its assign to another thread
+  
   sema_up (&lock->semaphore);
 
   // Priority inversion take priority away as it release lock
@@ -280,25 +291,28 @@ lock_release (struct lock *lock)
   2. Remove this lock from threads locks_holds list as its released now
   */
  
-  struct thread *cur_thread = thread_current();
-  // list_remove(&lock->elem);       // remove current lock from threads hold list as its been relesed
+ if(!thread_mlfqs)
+ {
+    struct thread *cur_thread = thread_current();
+    // list_remove(&lock->elem);       // remove current lock from threads hold list as its been relesed
 
-  if(!list_empty(&cur_thread->locks_holds))
-    {
-      // if it holds more locks then find the highest priorty lock and assign its priority to thread
-      list_sort(&(cur_thread->locks_holds),(list_less_func *) &lock_priority_compare, NULL);
-      //int size = list_size(&(cur_thread->locks_holds));
-      struct lock *highest_priority_lock = list_entry( list_front(&(cur_thread->locks_holds)), struct lock, elem );
-      cur_thread->priority = highest_priority_lock->lock_priority;
-      //thread_set_priority(highest_priority_lock->lock_priority);
-    }
-    else
-    {
-      // if there are no more locks it hold change its priority to initial priority
-      cur_thread->priority = cur_thread->initial_priority;
-      //thread_set_priority(cur_thread->initial_priority);
-    }
-    thread_yield();
+    if(!list_empty(&cur_thread->locks_holds))
+      {
+        // if it holds more locks then find the highest priorty lock and assign its priority to thread
+        list_sort(&(cur_thread->locks_holds),(list_less_func *) &lock_priority_compare, NULL);
+        //int size = list_size(&(cur_thread->locks_holds));
+        struct lock *highest_priority_lock = list_entry( list_front(&(cur_thread->locks_holds)), struct lock, elem );
+        cur_thread->priority = highest_priority_lock->lock_priority;
+        //thread_set_priority(highest_priority_lock->lock_priority);
+      }
+      else
+      {
+        // if there are no more locks it hold change its priority to initial priority
+        cur_thread->priority = cur_thread->initial_priority;
+        //thread_set_priority(cur_thread->initial_priority);
+      }
+      thread_yield();
+ }
 }
 
 /* Returns true if the current thread holds LOCK, false
