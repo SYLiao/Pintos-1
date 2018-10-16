@@ -177,6 +177,21 @@ timer_interrupt (struct intr_frame *args UNUSED)
   //try_Sleeping_Threads();  
   //printf("here inter \n");
   try_waking_sleeping_threads(timer_ticks ());
+	
+  /* If thread is in mlfqs, we come true:
+   1. Recent_cpu is incremented by 1 for the running thread every timer	tick
+   2. Priority is recalculated for each	thread every 4 ticks
+   3. The caculation of recent_cpu and load_avg every second */
+
+
+  if (thread_mlfqs)
+  {
+    recent_cpu_increase (thread_current());
+    if (ticks % TIMER_FREQ == 0)
+      mlfqs_update ();
+    else if (ticks % 4 == 0)
+      priority_update_all ();
+  }
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
