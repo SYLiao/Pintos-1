@@ -11,6 +11,7 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "fixed.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -74,6 +75,9 @@ void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 static struct semaphore sleep_sema;
 
+/* Because load_acg is not thread_specific, it is a system-wide	metric, so we set it here. */
+fixed_point load_avg;
+
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
@@ -115,6 +119,7 @@ printf("****************thread_start \n");
   struct semaphore idle_started;
   sema_init (&idle_started, 0);
   thread_create ("idle", PRI_MIN, idle, &idle_started);
+  load_avg = FX_convert (0);
 
   /* Start preemptive thread scheduling. */
   intr_enable ();
@@ -373,31 +378,30 @@ thread_get_priority (void)
 void
 thread_set_nice (int nice UNUSED) 
 {
-  /* Not yet implemented. */
+  thread_current ()->nice = nice;
+  priority_update (thread_current ());
+  thread_yield ();
 }
 
 /* Returns the current thread's nice value. */
 int
 thread_get_nice (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  return thread_current ()->nice;
 }
 
 /* Returns 100 times the system load average. */
 int
 thread_get_load_avg (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  return FX_back (FX_mmut (load_avg, 100));
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  return FX_back (FX_mmut (thread_current ()->recent_cpu, 100));
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -493,6 +497,8 @@ init_thread (struct thread *t, const char *name, int priority)
   old_level = intr_disable ();
   list_insert_ordered (&all_list, &t->allelem, (list_less_func *) &priority_compare, NULL);
   intr_set_level (old_level);
+  t->nice = 0;
+  t->recent_cpu = FX_convert (0);
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
@@ -691,4 +697,71 @@ struct list_elem *
 	}
 	
 	return list_pop_front (list);
+}
+
+/* Recent_cpu is incremented by 1 for the running thread every timer tick */
+void
+recent_cpu_increase (struct thread *th)
+{
+  if (th == idle_thread)
+    return;
+
+  ASSERT (thread_mlfqs);
+  ASSERT (intr_context ());
+
+  th->recent_cpu = FX_mplus (th->recent_cpu, 1);
+}
+
+/* The caculation of recent_cpu and load_avg every second */
+void
+mlfqs_update (void)
+{
+  ASSERT (thread_mlfqs);
+  ASSERT (intr_context ());
+
+  size_t ready_threads = list_size (&ready_list);
+  if (thread_current() != idle_thread) ready_threads++;
+  load_avg = FX_plus (FX_mdiv (FX_mmut (load_avg, 59), 60), FX_mdiv (FX_convert (ready_threads), 60));
+
+  struct thread *th;
+  for (struct list_elem *e = list_begin (&all_list); e != list_end (&all_list); e = list_next (e))
+  {
+    th = list_entry(e, struct thread, allelem);
+    if (th != idle_thread)
+    {
+      th->recent_cpu = FX_mplus (FX_mut (FX_div (FX_mmut (load_avg, 2), FX_mplus (FX_mmut (load_avg, 2), 1)), th->recent_cpu), th->nice);
+      //priority_update (th);
+    }
+  }
+}
+
+
+/* Priority is recalculated for each thread every 4 ticks */
+void
+priority_update_all ()
+{
+  ASSERT (thread_mlfqs);
+
+  struct thread *th;
+  for (struct list_elem *e = list_begin (&all_list); e != list_end (&all_list); e = list_next (e))
+  {
+    th = list_entry(e, struct thread, allelem);
+    if (th != idle_thread)
+    {
+      priority_update(th);
+    }
+  }  
+}
+
+/* Priority is recalculated for one thread */
+void
+priority_update (struct thread *th)
+{
+
+  ASSERT (thread_mlfqs);
+  ASSERT (th != idle_thread);
+
+  th->priority = FX_back_int (FX_mmin (FX_min (FX_convert (PRI_MAX), FX_mdiv (th->recent_cpu, 4)), 2 * th->nice));
+  th->priority = th->priority < PRI_MIN ? PRI_MIN : th->priority;
+  th->priority = th->priority > PRI_MAX ? PRI_MAX : th->priority;
 }
