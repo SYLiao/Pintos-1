@@ -730,7 +730,6 @@ mlfqs_update (void)
     if (th != idle_thread)
     {
       th->recent_cpu = FX_mplus (FX_mut (FX_div (FX_mmut (load_avg, 2), FX_mplus (FX_mmut (load_avg, 2), 1)), th->recent_cpu), th->nice);
-      //priority_update (th);
     }
   }
 }
@@ -748,20 +747,9 @@ priority_update_all ()
     th = list_entry(e, struct thread, allelem);
     if (th != idle_thread)
     {
-      priority_update(th);
+      th->priority = FX_back_int (FX_mmin (FX_min (FX_convert (PRI_MAX), FX_mdiv (th->recent_cpu, 4)), 2 * th->nice));
+      th->priority = th->priority < PRI_MIN ? PRI_MIN : th->priority;
+      th->priority = th->priority > PRI_MAX ? PRI_MAX : th->priority;
     }
   }  
-}
-
-/* Priority is recalculated for one thread */
-void
-priority_update (struct thread *th)
-{
-
-  ASSERT (thread_mlfqs);
-  ASSERT (th != idle_thread);
-
-  th->priority = FX_back_int (FX_mmin (FX_min (FX_convert (PRI_MAX), FX_mdiv (th->recent_cpu, 4)), 2 * th->nice));
-  th->priority = th->priority < PRI_MIN ? PRI_MIN : th->priority;
-  th->priority = th->priority > PRI_MAX ? PRI_MAX : th->priority;
 }
