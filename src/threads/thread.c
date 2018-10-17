@@ -394,14 +394,14 @@ thread_get_nice (void)
 int
 thread_get_load_avg (void) 
 {
-  return FX_back (FX_mmut (load_avg, 100));
+  return FX_back (load_avg * 100);
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu (void) 
 {
-  return FX_back (FX_mmut (thread_current ()->recent_cpu, 100));
+  return FX_back (thread_current ()->recent_cpu * 100);
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
@@ -721,7 +721,7 @@ mlfqs_update (void)
 
   size_t ready_threads = list_size (&ready_list);
   if (thread_current() != idle_thread) ready_threads++;
-  load_avg = FX_plus (FX_mdiv (FX_mmut (load_avg, 59), 60), FX_mdiv (FX_convert (ready_threads), 60));
+  load_avg = (load_avg * 59 / 60) + (FX_convert (ready_threads) / 60);
 
   struct thread *th;
   for (struct list_elem *e = list_begin (&all_list); e != list_end (&all_list); e = list_next (e))
@@ -729,7 +729,7 @@ mlfqs_update (void)
     th = list_entry(e, struct thread, allelem);
     if (th != idle_thread)
     {
-      th->recent_cpu = FX_mplus (FX_mut (FX_div (FX_mmut (load_avg, 2), FX_mplus (FX_mmut (load_avg, 2), 1)), th->recent_cpu), th->nice);
+      th->recent_cpu = FX_mplus (FX_mut (FX_div (load_avg * 2 , FX_mplus (load_avg * 2, 1)), th->recent_cpu), th->nice);
       //priority_update (th);
     }
   }
@@ -761,7 +761,7 @@ priority_update (struct thread *th)
   ASSERT (thread_mlfqs);
   ASSERT (th != idle_thread);
 
-  th->priority = FX_back_int (FX_mmin (FX_min (FX_convert (PRI_MAX), FX_mdiv (th->recent_cpu, 4)), 2 * th->nice));
+  th->priority = FX_back_int (FX_mmin (FX_convert (PRI_MAX) - th->recent_cpu / 4, 2 * th->nice));
   th->priority = th->priority < PRI_MIN ? PRI_MIN : th->priority;
   th->priority = th->priority > PRI_MAX ? PRI_MAX : th->priority;
 }
