@@ -11,16 +11,12 @@ typedef int fixed_point;
 #define FX_back_int(X) (X >> F_SHIFT)
 #define FX_back(X) (X >= 0 ? ((X + (1 << (F_SHIFT - 1))) >> F_SHIFT) : ((X - (1 << (F_SHIFT - 1))) >> F_SHIFT))
 /* Add */
-#define FX_plus(X,Y) (X + Y)
 #define FX_mplus(X, Y) (X + (Y << F_SHIFT))
 /* Substarct */
-#define FX_min(X, Y) (X - Y)
 #define FX_mmin(X, Y) (X - (Y << F_SHIFT))
 /* Mutiple */
-#define FX_mmut(X, Y) (X * Y)
 #define FX_mut(X, Y) ((fixed_point)(((int64_t) X) * Y >> F_SHIFT))
 /* Divide */
-#define FX_mdiv(X, Y) (X / Y)
 #define FX_div(X, Y) ((fixed_point)((((int64_t) X) << F_SHIFT) / Y))
 
 
