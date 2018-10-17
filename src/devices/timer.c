@@ -189,7 +189,7 @@ timer_interrupt (struct intr_frame *args UNUSED)
     recent_cpu_increase (thread_current());
     if (ticks % TIMER_FREQ == 0)
       mlfqs_update ();
-    else if (ticks % 4 == 0)
+    if (ticks % 4 == 0)
       priority_update_all ();
   }
 }
