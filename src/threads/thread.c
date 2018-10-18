@@ -525,9 +525,7 @@ next_thread_to_run (void)
   if (list_empty (&ready_list))
     return idle_thread;
   else
-    return list_entry (list_pop_front (&ready_list), struct thread, elem);
-	  //return list_entry (next_thread_by_priority(&ready_list), struct thread, elem);
-   
+    return list_entry (list_pop_front (&ready_list), struct thread, elem);   
 }
 
 /* Completes a thread switch by activating the new thread's page
@@ -631,29 +629,35 @@ void try_waking_sleeping_threads (int64_t current_ticks)
       
       t = list_entry (list_pop_front (&sleep_list), struct thread, elem);
       list_insert_ordered (&ready_list, &t->elem, (list_less_func *) &priority_compare, NULL);
+      //thread_unblock(t);
       t->status = THREAD_READY;
+      //intr_yield_on_return();
     }
 }
 
 
 void 
-push_thread_sleep_list(int64_t sleepTill)
+push_thread_sleep_list(int64_t ticks)
 {
 	sema_down (&sleep_sema);
-	struct thread *cur = thread_current ();
-	enum intr_level old_level;
-   if (cur != idle_thread) 
-	{
-		cur->sleepTill=sleepTill;
-    //list_push_back (&sleep_list, &cur->elem);
+  struct thread *cur = thread_current ();
+  if (cur != idle_thread && ticks > 0) 
+  {
+    int64_t start = timer_ticks ();
+    int64_t sleepTill = start+ticks;      
+    cur->sleepTill = sleepTill;
+    sema_up(&sleep_sema);
     list_insert_ordered (&sleep_list, &cur->elem, (list_less_func *) &sleep_time_compare, NULL);
-		cur->status = THREAD_BLOCKED;
-	}
-	sema_up(&sleep_sema);
-	old_level = intr_disable ();
-	schedule ();
-	intr_set_level (old_level);	
+    enum intr_level old_level;
+    old_level = intr_disable ();
+    thread_block();
+    intr_set_level (old_level);	
   }
+  else{
+    sema_up(&sleep_sema);
+  }   
+  
+}
 
 bool priority_compare(struct list_elem *e1, struct list_elem *e2)
 {
@@ -669,34 +673,6 @@ bool sleep_time_compare(struct list_elem *e1, struct list_elem *e2)
     return (t1->priority > t2->priority);
 
 	return (t1->sleepTill < t2->sleepTill);
-}
-
-struct list_elem *
- next_thread_by_priority(struct list *list)
-{
-	int max_priority=-1;			// In pintos minimum priority will be 0 so setting up to below than its lower end
-	struct list_elem *e;
-	int count=0;
-	struct list_elem *elem_hold_to_remove;
-	for (e = list_begin (list); e != list_end (list);
-       e = list_next (e))
-    {
-      struct thread *t = list_entry (e, struct thread, allelem);
-      if(t->priority > max_priority)							// Same priority threads will be picked FCFS fashion
-	  {
-		  max_priority=t->priority;
-		  elem_hold_to_remove = e;
-	  }
-	  count++;
-    }
-	
-	if(count>1)
-	{
-		list_remove(elem_hold_to_remove);							// Removing the scheduled thread from the list
-		return elem_hold_to_remove;
-	}
-	
-	return list_pop_front (list);
 }
 
 /* Recent_cpu is incremented by 1 for the running thread every timer tick */

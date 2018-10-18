@@ -89,13 +89,8 @@ timer_elapsed (int64_t then)
 void
 timer_sleep (int64_t ticks) 
 {
-  int64_t start = timer_ticks ();
-
-  ASSERT (intr_get_level () == INTR_ON);
-  if(ticks > 0)
-	push_thread_sleep_list(start+ticks);
-  // while (timer_elapsed (start) < ticks) 
-     // thread_yield ();
+  ASSERT (intr_get_level () == INTR_ON);  
+	push_thread_sleep_list(ticks);
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -176,7 +171,7 @@ timer_interrupt (struct intr_frame *args UNUSED)
   thread_tick ();
   //try_Sleeping_Threads();  
   //printf("here inter \n");
-  try_waking_sleeping_threads(timer_ticks ());
+  
 	
   /* If thread is in mlfqs, we come true:
    1. Recent_cpu is incremented by 1 for the running thread every timer	tick
@@ -192,6 +187,8 @@ timer_interrupt (struct intr_frame *args UNUSED)
     else if (ticks % 4 == 0)
       priority_update_all ();
   }
+
+  try_waking_sleeping_threads(timer_ticks ());
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer

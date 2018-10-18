@@ -147,7 +147,6 @@ int thread_get_load_avg (void);
 
 void push_thread_sleep_list (int64_t sleepTill);
 void try_waking_sleeping_threads (int64_t current_ticks);
-//void waking_sleeping_thread(thread *t,void *aux);
 
 bool priority_compare(struct list_elem *e1, struct list_elem *e2);
 bool sleep_time_compare(struct list_elem *e1, struct list_elem *e2);
@@ -156,6 +155,4 @@ void recent_cpu_increase (struct thread *th);
 void mlfqs_update (void);
 void priority_update_all (void);
 void priority_update (struct thread *t);
-
-struct list_elem *next_thread_by_priority(struct list *list);
 #endif /* threads/thread.h */
