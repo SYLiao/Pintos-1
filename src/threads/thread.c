@@ -74,6 +74,7 @@ static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 static struct semaphore sleep_sema;
+static struct semaphore set_priority_sema;
 
 /* Because load_acg is not thread_specific, it is a system-wide	metric, so we set it here. */
 fixed_point load_avg;
@@ -101,6 +102,7 @@ thread_init (void)
   list_init (&all_list);
   list_init (&sleep_list);
   sema_init (&sleep_sema, 1);
+  sema_init (&set_priority_sema, 1);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -356,14 +358,17 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
+  sema_down(&set_priority_sema);
   if(list_empty(&thread_current ()->locks_holds))           // check if donation is not in play otherwise dont let this function to change the priority
   {
     thread_current ()->priority = new_priority;
+    sema_up(&set_priority_sema);
   /* When a new priority is set to current thread, put it back to ready queue and sort again. */
     thread_yield();
   }
   else{
     thread_current ()->initial_priority = new_priority;      // but keep track of the priority changes to assign when donation is not in picture
+    sema_up(&set_priority_sema);
   }
 }
 
