@@ -107,6 +107,8 @@ struct thread
 
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
+	
+    int terminal_value;                 /* Record the return value */
   };
 
 /* If false (default), use round-robin scheduler.
